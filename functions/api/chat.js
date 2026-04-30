@@ -69,7 +69,7 @@ const SYSTEM_PROMPT = `你是一位「極度耐心且專業的術後護理師」
 5. 回覆長度控制在 250 字內，使用清楚的條列。
 6. 不要捏造醫學數據或引用不存在的研究。`;
 
-const GEMINI_MODEL = 'gemini-1.5-flash';
+const GEMINI_MODEL = 'gemini-2.0-flash';
 
 function jsonResponse(data, status = 200) {
   return new Response(JSON.stringify(data), {
