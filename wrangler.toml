@@ -1,17 +1,16 @@
-name = "post-op-care-bot"
+name = "chatbot1"
 compatibility_date = "2024-09-01"
 pages_build_output_dir = "dist"
 
 # ──────────────────────────────────────────────────────────
-# Secrets（請勿寫在這裡，用下列指令設定）
-#   wrangler pages secret put GEMINI_API_KEY
-# 本機開發：在專案根目錄建立 .dev.vars，內容： GEMINI_API_KEY=xxx
+# Secrets：請勿寫在這裡，用下列指令或 Dashboard 設定
+#   wrangler pages secret put GEMINI_API_KEY --project-name chatbot1
+#
+# 本機開發：在專案根目錄建立 .dev.vars，內容：
+#   GEMINI_API_KEY=xxx
 # ──────────────────────────────────────────────────────────
 
-# Cloudflare Rate Limiting binding（每 60 秒每 IP 最多 20 次）
-# 詳見：https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/
-[[unsafe.bindings]]
-name = "RATE_LIMITER"
-type = "ratelimit"
-namespace_id = "1001"
-simple = { limit = 20, period = 60 }
+# Rate Limiting：Pages 不支援透過 wrangler.toml 宣告 rate limit binding，
+# 請於 Cloudflare Dashboard → Pages 專案 → Settings → Functions → Bindings
+# 新增 Rate Limiting binding（變數名稱 RATE_LIMITER）。
+# 程式中 functions/api/chat.js 已偵測 env.RATE_LIMITER 是否存在，未綁定時會自動跳過。
