@@ -1,0 +1,17 @@
+name = "post-op-care-bot"
+compatibility_date = "2024-09-01"
+pages_build_output_dir = "dist"
+
+# ──────────────────────────────────────────────────────────
+# Secrets（請勿寫在這裡，用下列指令設定）
+#   wrangler pages secret put GEMINI_API_KEY
+# 本機開發：在專案根目錄建立 .dev.vars，內容： GEMINI_API_KEY=xxx
+# ──────────────────────────────────────────────────────────
+
+# Cloudflare Rate Limiting binding（每 60 秒每 IP 最多 20 次）
+# 詳見：https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/
+[[unsafe.bindings]]
+name = "RATE_LIMITER"
+type = "ratelimit"
+namespace_id = "1001"
+simple = { limit = 20, period = 60 }

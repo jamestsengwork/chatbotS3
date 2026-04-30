@@ -1,0 +1,2 @@
+# 本機開發用：複製為 .dev.vars 後填入實際 API Key
+GEMINI_API_KEY=your_gemini_api_key_here

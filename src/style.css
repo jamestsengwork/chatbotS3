@@ -1,0 +1,21 @@
+:root {
+  font-family: 'Noto Sans TC', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color: #1f2933;
+  background: #f4f6fa;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+button {
+  font-family: inherit;
+}
