@@ -1,8 +1,7 @@
 <script setup>
 import { ref, nextTick, useTemplateRef } from 'vue'
+import { sendChat } from './lib/chat.js'
 
-// 同源部署 (Pages Functions) 時 VITE_API_BASE_URL 留空即可。
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? ''
 const HISTORY_LIMIT = 10 // 送往後端的最大歷史輪數
 
 const messages = ref([
@@ -43,20 +42,7 @@ async function sendMessage() {
   await scrollToBottom()
 
   try {
-    const res = await fetch(`${API_BASE_URL}/api/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: text, history })
-    })
-
-    if (res.status === 429) {
-      throw new Error('您的提問過於頻繁，請稍候再試。')
-    }
-    if (!res.ok) {
-      throw new Error(`伺服器回應錯誤 (${res.status})`)
-    }
-
-    const data = await res.json()
+    const data = await sendChat(text, history)
     messages.value.push({
       role: 'assistant',
       content: data.reply ?? '（沒有取得回覆內容）',

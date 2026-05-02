@@ -1,16 +1,16 @@
 /**
- * 術後安心助手 - Cloudflare Pages Functions
- * Route: POST /api/chat
+ * 術後安心助手 - 前端 Chat 模組（S3 靜態版本）
  *
- * 流程：使用者 → Pages 前端 → Pages Function → 安全護欄 → Gemini API → 回覆
+ * 將原本 Cloudflare Pages Function (functions/api/chat.js) 的邏輯搬到瀏覽器：
+ * - 安全護欄（緊急關鍵字攔截）
+ * - System prompt 定義
+ * - 直接呼叫 Google Gemini API
  *
- * Body:
- *   {
- *     message: string,
- *     history?: { role: 'user' | 'assistant', content: string }[]
- *   }
- * Response:
- *   { reply: string, safetyLevel: 'normal' | 'emergency' }
+ * ⚠️ 安全提醒：
+ *   靜態網站無法保管 secret，API Key 會以兩種方式之一進入瀏覽器：
+ *   (A) 由 build-time 環境變數 VITE_GEMINI_API_KEY 注入到 JS bundle（會被任何人看到）
+ *   (B) 部署一個 AWS Lambda Function URL / API Gateway 當代理，在前端設定 VITE_API_BASE_URL
+ *   建議生產環境使用 (B)。詳見 README。
  */
 
 const EMERGENCY_KEYWORDS = [
@@ -71,18 +71,10 @@ const SYSTEM_PROMPT = `你是一位「極度耐心且專業的術後護理師」
 
 const GEMINI_MODEL = 'gemini-2.5-flash-lite';
 
-function jsonResponse(data, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { 'Content-Type': 'application/json; charset=utf-8' },
-  });
-}
-
 function containsEmergencyKeyword(text) {
   return EMERGENCY_KEYWORDS.some((kw) => text.includes(kw));
 }
 
-/** 把前端傳來的 history + 當前 message 轉成 Gemini 的 contents 格式 */
 function buildContents(history, message) {
   const items = Array.isArray(history) ? history : [];
   const contents = [];
@@ -98,7 +90,7 @@ function buildContents(history, message) {
   return contents;
 }
 
-async function callGemini(message, history, apiKey) {
+async function callGeminiDirect(message, history, apiKey) {
   const url =
     `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
@@ -142,72 +134,45 @@ async function callGemini(message, history, apiKey) {
   return reply;
 }
 
-/** 取得來源 IP 作為 rate limit key */
-function getClientKey(request) {
-  return (
-    request.headers.get('CF-Connecting-IP') ||
-    request.headers.get('X-Forwarded-For') ||
-    'unknown'
-  );
+async function callViaProxy(baseUrl, message, history) {
+  const res = await fetch(`${baseUrl.replace(/\/$/, '')}/api/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message, history }),
+  });
+  if (res.status === 429) throw new Error('您的提問過於頻繁，請稍候再試。');
+  if (!res.ok) throw new Error(`伺服器回應錯誤 (${res.status})`);
+  const data = await res.json();
+  return { reply: data.reply, safetyLevel: data.safetyLevel ?? 'normal' };
 }
 
-export const onRequestPost = async (context) => {
-  const { request, env } = context;
+/**
+ * 主要入口：依環境變數決定走 (A) 直連 Gemini 或 (B) 走後端代理
+ * @param {string} message
+ * @param {{role:'user'|'assistant', content:string}[]} history
+ * @returns {Promise<{reply:string, safetyLevel:'normal'|'emergency'}>}
+ */
+export async function sendChat(message, history) {
+  const text = (message ?? '').trim();
+  if (!text) throw new Error('message 不可為空');
+  if (text.length > 2000) throw new Error('message 過長（上限 2000 字）');
 
-  // ── 1. Rate limiting（若 binding 存在才啟用） ──────────────────────
-  if (env.RATE_LIMITER && typeof env.RATE_LIMITER.limit === 'function') {
-    try {
-      const { success } = await env.RATE_LIMITER.limit({ key: getClientKey(request) });
-      if (!success) {
-        return jsonResponse({ error: '請求過於頻繁，請稍候再試' }, 429);
-      }
-    } catch (e) {
-      // rate limiter 故障時不阻擋正常請求
-      console.warn('Rate limiter error:', e);
-    }
+  // 安全護欄：本地端先判斷
+  if (containsEmergencyKeyword(text)) {
+    return { reply: EMERGENCY_SOP, safetyLevel: 'emergency' };
   }
 
-  // ── 2. 解析輸入 ─────────────────────────────────────────────
-  let payload;
-  try {
-    payload = await request.json();
-  } catch {
-    return jsonResponse({ error: '請傳送有效的 JSON' }, 400);
+  const apiBase = import.meta.env.VITE_API_BASE_URL;
+  if (apiBase) {
+    // (B) 透過 Lambda / API Gateway 等後端代理（推薦）
+    return callViaProxy(apiBase, text, history);
   }
 
-  const message = typeof payload?.message === 'string' ? payload.message.trim() : '';
-  if (!message) return jsonResponse({ error: 'message 不可為空' }, 400);
-  if (message.length > 2000) return jsonResponse({ error: 'message 過長（上限 2000 字）' }, 400);
-
-  // ── 3. 安全護欄：緊急關鍵字直接回 SOP，不呼叫 Gemini ─────────────
-  if (containsEmergencyKeyword(message)) {
-    return jsonResponse({ reply: EMERGENCY_SOP, safetyLevel: 'emergency' });
+  // (A) 直連 Gemini（API Key 會暴露在前端 bundle，僅供 demo）
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error('未設定 VITE_GEMINI_API_KEY 或 VITE_API_BASE_URL');
   }
-
-  // ── 4. 呼叫 Gemini ─────────────────────────────────────────
-  if (!env.GEMINI_API_KEY) {
-    return jsonResponse({ error: '伺服器尚未設定 GEMINI_API_KEY' }, 500);
-  }
-
-  try {
-    const reply = await callGemini(message, payload?.history, env.GEMINI_API_KEY);
-    return jsonResponse({ reply, safetyLevel: 'normal' });
-  } catch (err) {
-    return jsonResponse(
-      {
-        error: '無法取得 AI 回覆',
-        detail: err instanceof Error ? err.message : String(err),
-      },
-      502
-    );
-  }
-};
-
-// 若有跨網域呼叫需求才啟用 CORS。同網域 (Pages) 不需要。
-export const onRequestOptions = () =>
-  new Response(null, {
-    status: 204,
-    headers: {
-      'Allow': 'POST, OPTIONS',
-    },
-  });
+  const reply = await callGeminiDirect(text, history, apiKey);
+  return { reply, safetyLevel: 'normal' };
+}

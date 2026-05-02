@@ -1,18 +1,17 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 
-// 開發時把 /api 轉發到 wrangler pages dev (預設 8788)
-// 推薦做法：另開一個終端執行 `npx wrangler pages dev --proxy 5173 -- vite`
-// 它會同時啟動 Vite (5173) 與 Functions runtime (8788)，並讓前後端共用 8788 同源。
+// S3 靜態託管版本：純前端，不再需要 /api 代理
 export default defineConfig({
   plugins: [vue()],
+  // 部署到 S3 根網域時保持 './'，
+  // 若部署在子路徑（例如 https://example.com/chatbot/），請改成 '/chatbot/'
+  base: './',
   server: {
-    port: 5173,
-    proxy: {
-      '/api': {
-        target: 'http://localhost:8788',
-        changeOrigin: true
-      }
-    }
+    port: 5173
+  },
+  build: {
+    outDir: 'dist',
+    sourcemap: false
   }
 })

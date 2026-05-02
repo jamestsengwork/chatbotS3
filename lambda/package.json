@@ -1,0 +1,11 @@
+{
+  "name": "chatbot-lambda",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "AWS Lambda handler for chatbotS3 (proxies Gemini API)",
+  "main": "index.mjs",
+  "engines": {
+    "node": ">=20"
+  }
+}
