@@ -1,4 +1,4 @@
-# Lambda 後端代理（方案 B）
+# Lambda 後端代理
 
 這個資料夾是 chatbotS3 的後端 API 代理，部署在 AWS Lambda（Node.js 20.x），
 讓前端不需要把 `GEMINI_API_KEY` 暴露在瀏覽器。
@@ -96,7 +96,6 @@ aws lambda get-function-url-config --function-name $FN --region $REGION --query 
 
 ```env
 VITE_API_BASE_URL=https://abcd1234.lambda-url.ap-northeast-1.on.aws
-VITE_GEMINI_API_KEY=
 ```
 
 然後重新 `npm run build && npm run deploy:s3`。
