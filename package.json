@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:api": "node --watch scripts/dev-server.mjs",
     "build": "vite build",
     "preview": "vite preview",
     "deploy:s3": "vite build && aws s3 sync dist/ s3://%S3_BUCKET%/ --delete",
